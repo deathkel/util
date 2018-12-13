@@ -1,0 +1,125 @@
+package queue
+
+import (
+    "testing"
+    "context"
+    "strconv"
+    "time"
+)
+
+func TestNewQ(t *testing.T) {
+    q := NewQ()
+    if q == nil {
+        t.Error("new Q fail")
+    }
+}
+
+func TestQ_Add(t *testing.T) {
+    q := NewQ()
+    for i := 0; i < 5; i++ {
+        q.Add(i, i+10)
+    }
+    
+    if q.length != 5 {
+        t.Error("length wrong")
+    }
+    
+    for i := 0; i < 5; i++ {
+        if _key := q.keyMap[i]; _key == nil {
+            t.Error("keyMap wrong")
+        }
+    }
+    
+    if len(q.events) != 5 {
+        t.Error("events num wrong")
+    }
+}
+
+func TestQ_GetOne(t *testing.T) {
+    q := NewQ()
+    
+    //push 1 event to queue
+    q.Add(0, 10)
+    
+    //callback返回false，任务放回队尾
+    ctx1, _ := context.WithCancel(context.Background())
+    res := q.GetOne(ctx1, func(key interface{}, data interface{}) bool {
+        return false
+    })
+    
+    if res {
+        t.Error("Get return true, should return false")
+    }
+    if q.length != 1 {
+        t.Error("callback repush data to queue fail, length should be 1, get " + strconv.Itoa(q.length))
+    }
+    
+    //callback返回true,队列消费正常
+    ctx2, _ := context.WithCancel(context.Background())
+    res = q.GetOne(ctx2, func(key interface{}, data interface{}) bool {
+        return true
+    })
+    
+    if !res {
+        t.Error("Get return false, should return true")
+    }
+    if q.length != 0 {
+        t.Error("queue length error shoud be 0, get " + strconv.Itoa(q.length))
+    }
+    
+    //消费者取消
+    ctx3, _ := context.WithTimeout(context.Background(), time.Second)
+    res = q.GetOne(ctx3, func(key interface{}, data interface{}) bool {
+        t.Error("should block")
+        return false
+    })
+    
+    if res {
+        t.Error("consumer timeout shoud return false")
+    }
+}
+
+func TestQ_Get(t *testing.T) {
+    q := NewQ()
+    
+    for i := 0; i < 5; i++ {
+        q.Add(i, i)
+    }
+    
+    ch := make(chan bool)
+    go func() {
+        defer func() {
+            ch <- false
+        }()
+        i := 0
+        ctx3, _ := context.WithTimeout(context.Background(), time.Second)
+        q.Get(ctx3, func(key interface{}, data interface{}) bool {
+            if i > 5{
+                t.Error("should be lock")
+                ch <- true
+            }
+            i++
+            return true
+        })
+    }()
+    
+    <- ch
+    return
+}
+
+func TestQ_Close(t *testing.T) {
+    q := NewQ()
+    for i := 0; i < 5; i++ {
+        q.Add(i, i)
+    }
+    
+    q.Close()
+    
+    if q.status != false {
+        t.Error("Colse fail")
+    }
+}
+
+func TestQ_Open(t *testing.T) {
+
+}

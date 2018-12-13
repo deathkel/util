@@ -1,0 +1,10 @@
+version: "2"
+
+services:
+   util.test:
+     image: deathillidan/golang:latest
+     volumes:
+       - ".:/go/src/util"
+     restart: always
+     container_name: util
+     entrypoint: "/go/src/util/entrypoint.sh"
