@@ -7,6 +7,38 @@ import (
     "time"
 )
 
+func Test_hash(t *testing.T) {
+    
+    data := []interface{}{1,
+        "1",
+        1.234,
+        int64(123),
+        struct {
+            v1 interface{}
+            v2 string
+        }{"123", "123"},
+        &struct {
+            v1 interface{}
+            v2 string
+        }{"123","123"},
+        []int{1, 2, 3},
+        &[]int{1, 2, 3},
+        []string{"1", "2"},
+        &[]string{"1", "2"},
+        map[string]string{"a": "a", "b": "b"},
+        &map[string]string{"a": "a", "b": "b"},
+        map[string]interface{}{"a": "a", "b": "b"},
+        &map[string]interface{}{"a": "a", "b": "b"},
+    }
+    
+    for _key := range data {
+        res := hash(data[_key])
+        if res == "" {
+            t.Error("get hash fail")
+        }
+    }
+}
+
 func TestNewQ(t *testing.T) {
     q := NewQ()
     if q == nil {
@@ -17,17 +49,14 @@ func TestNewQ(t *testing.T) {
 func TestQ_Add(t *testing.T) {
     q := NewQ()
     for i := 0; i < 5; i++ {
-        q.Add(i, i+10)
+        res := q.Add(i + 10)
+        if !res {
+            t.Error("add fail")
+        }
     }
     
     if q.length != 5 {
         t.Error("length wrong")
-    }
-    
-    for i := 0; i < 5; i++ {
-        if _key := q.keyMap[i]; _key == nil {
-            t.Error("keyMap wrong")
-        }
     }
     
     if len(q.events) != 5 {
@@ -39,11 +68,14 @@ func TestQ_GetOne(t *testing.T) {
     q := NewQ()
     
     //push 1 event to queue
-    q.Add(0, 10)
+    res := q.Add(10)
+    if !res {
+        t.Error("add fail")
+    }
     
     //callback返回false，任务放回队尾
     ctx1, _ := context.WithCancel(context.Background())
-    res := q.GetOne(ctx1, func(key interface{}, data interface{}) bool {
+    res = q.GetOne(ctx1, func(data interface{}) bool {
         return false
     })
     
@@ -56,7 +88,7 @@ func TestQ_GetOne(t *testing.T) {
     
     //callback返回true,队列消费正常
     ctx2, _ := context.WithCancel(context.Background())
-    res = q.GetOne(ctx2, func(key interface{}, data interface{}) bool {
+    res = q.GetOne(ctx2, func(data interface{}) bool {
         return true
     })
     
@@ -69,7 +101,7 @@ func TestQ_GetOne(t *testing.T) {
     
     //消费者取消
     ctx3, _ := context.WithTimeout(context.Background(), time.Second)
-    res = q.GetOne(ctx3, func(key interface{}, data interface{}) bool {
+    res = q.GetOne(ctx3, func(data interface{}) bool {
         t.Error("should block")
         return false
     })
@@ -83,7 +115,7 @@ func TestQ_Get(t *testing.T) {
     q := NewQ()
     
     for i := 0; i < 5; i++ {
-        q.Add(i, i)
+        q.Add(i)
     }
     
     ch := make(chan bool)
@@ -93,8 +125,8 @@ func TestQ_Get(t *testing.T) {
         }()
         i := 0
         ctx3, _ := context.WithTimeout(context.Background(), time.Second)
-        q.Get(ctx3, func(key interface{}, data interface{}) bool {
-            if i > 5{
+        q.Get(ctx3, func(data interface{}) bool {
+            if i > 5 {
                 t.Error("should be lock")
                 ch <- true
             }
@@ -103,14 +135,14 @@ func TestQ_Get(t *testing.T) {
         })
     }()
     
-    <- ch
+    <-ch
     return
 }
 
 func TestQ_Close(t *testing.T) {
     q := NewQ()
     for i := 0; i < 5; i++ {
-        q.Add(i, i)
+        q.Add(i)
     }
     
     q.Close()
@@ -118,8 +150,4 @@ func TestQ_Close(t *testing.T) {
     if q.status != false {
         t.Error("Colse fail")
     }
-}
-
-func TestQ_Open(t *testing.T) {
-
 }
