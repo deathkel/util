@@ -28,9 +28,8 @@ type event struct {
 
 type Q struct {
     status    bool                     //状态，是否启用
-    closeSign chan bool                //关闭信号
+    closeSign chan bool                //关闭信号,true为关闭
     lock      sync.RWMutex             //锁
-    length    int                      //快速获取队列长度
     unionMap map[string][]*interface{} //hash table
     events      chan *event            //队列内容
     consumerNum int                    //消费者数量
@@ -47,7 +46,6 @@ func NewQ(args ...int) *Q {
         status:    true,
         closeSign: make(chan bool, 100),
         unionMap: make(map[string][]*interface{}),
-        length:      0,
         events:      make(chan *event, queueLength),
         consumerNum: 0,
     }
@@ -85,7 +83,7 @@ func (q *Q) isDuplicate(hashStr string, data interface{}) bool {
 }
 
 //加入一个事件到队尾
-func (q *Q) Add(data interface{}) bool {
+func (q *Q) Add(ctx context.Context, data interface{}) bool {
     if q.status == false {
         //防止新数据写入
         fmt.Println("queue is stopped")
@@ -111,12 +109,15 @@ func (q *Q) Add(data interface{}) bool {
         data:      data,
         createdAt: time.Now().Unix(),
     }
-    
-    q.events <- e
-    q.unionMap[hashStr] = append(q.unionMap[hashStr], &e.data)
-    q.length ++
-    
-    fmt.Println("add data", data, "length", q.length)
+    select {
+    case <-ctx.Done():
+        fmt.Println("ctx stop Add...")
+        return false
+    case q.events <- e:
+        q.unionMap[hashStr] = append(q.unionMap[hashStr], &e.data)
+        
+    }
+    fmt.Println("add data", data, "length", len(q.events))
     return true
 }
 
@@ -151,20 +152,23 @@ func (q *Q) Get(ctx context.Context, callback func(data interface{}) bool) {
 //消费一个事件
 func (q *Q) getOne(ctx context.Context, callback func(data interface{}) bool) (result bool) {
     var e *event
+    //childCtx, cancel := context.WithCancel(ctx)
     select {
     case <-q.closeSign:
+        //cancel()
         fmt.Println("close func stop getOne...")
         return false
     case <-ctx.Done():
+        //cancel()
         fmt.Println("ctx stop getOne...")
         return false
     case e = <-q.events:
         //q的除event外其他属性可能有延迟修改
         q.lock.Lock()
-        q.length --
         if find := q.unionMap[e.hashKey ]; find != nil {
             for _key := range find {
-                if reflect.DeepEqual(*find[_key], e.data) {
+                //地址是否一致 判断是否是同一个值
+                if find[_key] == &e.data {
                     q.unionMap[e.hashKey] = append(q.unionMap[e.hashKey ][:_key], q.unionMap[e.hashKey][_key+1:]...)
                     break
                 }
@@ -175,14 +179,15 @@ func (q *Q) getOne(ctx context.Context, callback func(data interface{}) bool) (r
     
     defer func() {
         if err := recover(); err != nil {
-            q.Add(e.data)
+            q.Add(ctx, e.data)
             result = false
         }
     }()
     
     callbackRes := callback(e.data)
     if !callbackRes {
-        q.Add(e.data)
+        fmt.Println("readd")
+        q.Add(ctx, e.data)
         return false
     }
     

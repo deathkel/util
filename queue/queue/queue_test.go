@@ -3,7 +3,6 @@ package queue
 import (
     "testing"
     "context"
-    "strconv"
     "time"
     "fmt"
 )
@@ -21,7 +20,7 @@ func Test_hash(t *testing.T) {
         &struct {
             v1 interface{}
             v2 string
-        }{"123","123"},
+        }{"123", "123"},
         []int{1, 2, 3},
         &[]int{1, 2, 3},
         []string{"1", "2"},
@@ -49,15 +48,12 @@ func TestNewQ(t *testing.T) {
 
 func TestQ_Add(t *testing.T) {
     q := NewQ()
+    ctx, _ := context.WithCancel(context.Background())
     for i := 0; i < 5; i++ {
-        res := q.Add(i + 10)
+        res := q.Add(ctx, i + 10)
         if !res {
             t.Error("add fail")
         }
-    }
-    
-    if q.length != 5 {
-        t.Error("length wrong")
     }
     
     if len(q.events) != 5 {
@@ -67,9 +63,9 @@ func TestQ_Add(t *testing.T) {
 
 func TestQ_getOne(t *testing.T) {
     q := NewQ()
-    
+    ctx, _ := context.WithCancel(context.Background())
     //push 1 event to queue
-    res := q.Add(10)
+    res := q.Add(ctx, 10)
     if !res {
         t.Error("add fail")
     }
@@ -87,9 +83,6 @@ func TestQ_getOne(t *testing.T) {
     if <-ch {
         t.Error("Get return true, should return false")
     }
-    if q.length != 1 {
-        t.Error("callback repush data to queue fail, length should be 1, get " + strconv.Itoa(q.length))
-    }
     
     //callback返回true,队列消费正常
     go func() {
@@ -100,11 +93,8 @@ func TestQ_getOne(t *testing.T) {
         ch <- res
     }()
     
-    if ! <- ch {
+    if ! <-ch {
         t.Error("Get return false, should return true")
-    }
-    if q.length != 0 {
-        t.Error("queue length error shoud be 0, get " + strconv.Itoa(q.length))
     }
     
     //消费者取消
@@ -117,17 +107,16 @@ func TestQ_getOne(t *testing.T) {
         ch <- res
     }()
     
-    
-    if <- ch {
+    if <-ch {
         t.Error("consumer timeout shoud return false")
     }
 }
 
 func TestQ_Get(t *testing.T) {
     q := NewQ()
-    
+    ctx, _ := context.WithCancel(context.Background())
     for i := 0; i < 5; i++ {
-        q.Add(i)
+        q.Add(ctx, i)
     }
     
     ch := make(chan bool)
@@ -153,8 +142,9 @@ func TestQ_Get(t *testing.T) {
 
 func TestQ_Close(t *testing.T) {
     q := NewQ()
+    ctx, _ := context.WithCancel(context.Background())
     for i := 0; i < 5; i++ {
-        q.Add(i)
+        q.Add(ctx, i)
     }
     
     q.Close()

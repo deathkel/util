@@ -5,6 +5,7 @@ import (
     "context"
     "fmt"
     "time"
+    "math/rand"
 )
 
 type bar struct{
@@ -13,31 +14,34 @@ type bar struct{
 
 
 func main() {
-    q := queue.NewQ()
-    for i := 0; i < 10000; i++ {
-        data := &bar{i}
-        q.Add(data)
-        q.Add(data)
+    q := queue.NewQ(1)
+    for i := 0; i < 1000; i++ {
+        go func() {
+            ctx, _ := context.WithTimeout(context.Background(), time.Second*1)
+            for {
+                a := rand.Int()
+                res := q.Add(ctx, a)
+                if res == false{
+                    time.Sleep(time.Second)
+                }else{
+                    time.Sleep(time.Millisecond)
+                }
+            }
+        }()
     }
     
-    for i:=0; i< 5000; i++{
+    for i:=0; i< 50; i++{
         //5个消费者
         go func() {
-            ctx, _ := context.WithTimeout(context.Background(), time.Second*6)
+            ctx, _ := context.WithTimeout(context.Background(), time.Second*3)
             q.Get(ctx, func(data interface{}) bool {
                 fmt.Println( " data:", data)
-                return true
+                return false
             })
         }()
     }
-    time.Sleep(time.Second)
-    fmt.Println("1s after")
-    for i := 0; i < 10000; i++ {
-        data := &bar{i}
-        q.Add(data)
-        q.Add(data)
-    }
-    
-    //q.Close()
-    time.Sleep(time.Second * 10)
+    time.Sleep(time.Second * 5)
+    fmt.Println("5s after")
+    q.Close()
+    time.Sleep(time.Second * 2)
 }
