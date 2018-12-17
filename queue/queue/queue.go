@@ -11,6 +11,8 @@ import (
     "sensitive/sensitive_vendor/github.com/gin-gonic/gin/json"
 )
 
+const DEAFULT_Q_LENGTH = 999999
+
 type Queue interface {
     Add(data interface{}) bool
     Get(context.Context, func(data interface{}) bool) bool
@@ -34,14 +36,19 @@ type Q struct {
     consumerNum    int                 //消费者数量
 }
 
-//构造函数
-func NewQ() *Q {
+//构造函数,可自定义队列长度
+func NewQ(args ...int) *Q {
+    queueLength := DEAFULT_Q_LENGTH
+    if len(args) >= 1{
+        queueLength = args[0]
+    }
+   
     return &Q{
         status:    true,
         closeSign: make(chan bool, 1),
         unionMap: make(map[string][]*interface{}),
         length:         0,
-        events:         make(chan *event, 9999),
+        events:         make(chan *event, queueLength),
         consumerNum:    0,
     }
 }
@@ -155,8 +162,9 @@ func (q *Q) getOne(ctx context.Context, callback func(data interface{}) bool) (r
         fmt.Println("ctx stop getOne...")
         return false
     case e = <-q.events:
-        //这样写的话 q的除event外其他属性可能有延迟修改
+        //q的除event外其他属性可能有延迟修改
         q.lock.Lock()
+        q.length --
         if find := q.unionMap[e.hashKey ]; find != nil {
             for _key := range find {
                 if reflect.DeepEqual(*find[_key], e.data) {
@@ -165,7 +173,6 @@ func (q *Q) getOne(ctx context.Context, callback func(data interface{}) bool) (r
                 }
             }
         }
-        q.length --
         q.lock.Unlock()
     }
     
