@@ -84,14 +84,6 @@ func (q *Q) isDuplicate(hashStr string, data interface{}) bool {
     return false
 }
 
-func (q *Q) enqueue(hashStr string, e *event) {
-    q.lock.Lock()
-    q.events <- e
-    q.unionMap[hashStr] = append(q.unionMap[hashStr], &e.data)
-    q.length ++
-    q.lock.Unlock()
-}
-
 //加入一个事件到队尾
 func (q *Q) Add(data interface{}) bool {
     if q.status == false {
@@ -117,7 +109,11 @@ func (q *Q) Add(data interface{}) bool {
         createdAt: time.Now().Unix(),
     }
     
-    q.enqueue(hashStr, e)
+    q.lock.Lock()
+    q.events <- e
+    q.unionMap[hashStr] = append(q.unionMap[hashStr], &e.data)
+    q.length ++
+    q.lock.Unlock()
     
     fmt.Println("add data", data, "length", q.length)
     return true
