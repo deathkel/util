@@ -152,14 +152,11 @@ func (q *Q) Get(ctx context.Context, callback func(data interface{}) bool) {
 //消费一个事件
 func (q *Q) getOne(ctx context.Context, callback func(data interface{}) bool) (result bool) {
     var e *event
-    //childCtx, cancel := context.WithCancel(ctx)
     select {
     case <-q.closeSign:
-        //cancel()
         fmt.Println("close func stop getOne...")
         return false
     case <-ctx.Done():
-        //cancel()
         fmt.Println("ctx stop getOne...")
         return false
     case e = <-q.events:
@@ -186,7 +183,6 @@ func (q *Q) getOne(ctx context.Context, callback func(data interface{}) bool) (r
     
     callbackRes := callback(e.data)
     if !callbackRes {
-        fmt.Println("readd")
         q.Add(ctx, e.data)
         return false
     }
