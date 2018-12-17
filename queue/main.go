@@ -23,13 +23,14 @@ func main() {
     for i:=0; i< 5; i++{
         //5个消费者
         go func() {
-            ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
+            ctx, _ := context.WithTimeout(context.Background(), time.Second*6)
             q.Get(ctx, func(data interface{}) bool {
                 fmt.Println( " data:", data)
                 return true
             })
         }()
     }
+    time.Sleep(time.Second)
     q.Close()
     time.Sleep(time.Second * 5)
 }

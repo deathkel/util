@@ -5,6 +5,7 @@ import (
     "context"
     "strconv"
     "time"
+    "fmt"
 )
 
 func Test_hash(t *testing.T) {
@@ -64,7 +65,7 @@ func TestQ_Add(t *testing.T) {
     }
 }
 
-func TestQ_GetOne(t *testing.T) {
+func TestQ_getOne(t *testing.T) {
     q := NewQ()
     
     //push 1 event to queue
@@ -74,12 +75,16 @@ func TestQ_GetOne(t *testing.T) {
     }
     
     //callback返回false，任务放回队尾
-    ctx1, _ := context.WithCancel(context.Background())
-    res = q.GetOne(ctx1, func(data interface{}) bool {
-        return false
-    })
-    
-    if res {
+    ch := make(chan bool, 1)
+    go func() {
+        ctx1, _ := context.WithCancel(context.Background())
+        res = q.getOne(ctx1, func(data interface{}) bool {
+            return false
+        })
+        ch <- res
+    }()
+    fmt.Println(q.unionMap)
+    if <-ch {
         t.Error("Get return true, should return false")
     }
     if q.length != 1 {
@@ -87,12 +92,15 @@ func TestQ_GetOne(t *testing.T) {
     }
     
     //callback返回true,队列消费正常
-    ctx2, _ := context.WithCancel(context.Background())
-    res = q.GetOne(ctx2, func(data interface{}) bool {
-        return true
-    })
+    go func() {
+        ctx2, _ := context.WithCancel(context.Background())
+        res = q.getOne(ctx2, func(data interface{}) bool {
+            return true
+        })
+        ch <- res
+    }()
     
-    if !res {
+    if ! <- ch {
         t.Error("Get return false, should return true")
     }
     if q.length != 0 {
@@ -100,13 +108,17 @@ func TestQ_GetOne(t *testing.T) {
     }
     
     //消费者取消
-    ctx3, _ := context.WithTimeout(context.Background(), time.Second)
-    res = q.GetOne(ctx3, func(data interface{}) bool {
-        t.Error("should block")
-        return false
-    })
+    go func() {
+        ctx3, _ := context.WithTimeout(context.Background(), time.Second)
+        res = q.getOne(ctx3, func(data interface{}) bool {
+            t.Error("should block")
+            return false
+        })
+        ch <- res
+    }()
     
-    if res {
+    
+    if <- ch {
         t.Error("consumer timeout shoud return false")
     }
 }
