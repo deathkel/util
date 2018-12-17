@@ -204,9 +204,11 @@ func (q *Q) Close() {
 
 //启用队列
 func (q *Q) Open() {
+    q.lock.Lock()
     close(q.closeSign)
     q.closeSign = make(chan bool, 1)
     if !q.status {
         q.status = true
     }
+    q.lock.Unlock()
 }
