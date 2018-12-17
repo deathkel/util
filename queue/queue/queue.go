@@ -31,7 +31,6 @@ type Q struct {
     length    int                      //快速获取队列长度
     unionMap map[string][]*interface{} //hash table
     events         chan *event         //队列内容
-    sleepRankLimit int                 //消费者休眠等级限制
     consumerNum    int                 //消费者数量
 }
 
@@ -42,7 +41,6 @@ func NewQ() *Q {
         closeSign: make(chan bool, 1),
         unionMap: make(map[string][]*interface{}),
         length:         0,
-        sleepRankLimit: 10,
         events:         make(chan *event, 9999),
         consumerNum:    0,
     }
