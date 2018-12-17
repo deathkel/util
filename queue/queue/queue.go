@@ -32,24 +32,24 @@ type Q struct {
     lock      sync.RWMutex             //锁
     length    int                      //快速获取队列长度
     unionMap map[string][]*interface{} //hash table
-    events         chan *event         //队列内容
-    consumerNum    int                 //消费者数量
+    events      chan *event            //队列内容
+    consumerNum int                    //消费者数量
 }
 
 //构造函数,可自定义队列长度
 func NewQ(args ...int) *Q {
     queueLength := DEAFULT_Q_LENGTH
-    if len(args) >= 1{
+    if len(args) >= 1 {
         queueLength = args[0]
     }
-   
+    
     return &Q{
         status:    true,
-        closeSign: make(chan bool, 1),
+        closeSign: make(chan bool, 100),
         unionMap: make(map[string][]*interface{}),
-        length:         0,
-        events:         make(chan *event, queueLength),
-        consumerNum:    0,
+        length:      0,
+        events:      make(chan *event, queueLength),
+        consumerNum: 0,
     }
 }
 
@@ -99,6 +99,9 @@ func (q *Q) Add(data interface{}) bool {
         return false
     }
     
+    q.lock.Lock()
+    defer q.lock.Unlock()
+    //map的并发读可能会报错，所以要在此之前加锁
     if q.isDuplicate(hashStr, data) {
         fmt.Println("duplicate data")
         return false
@@ -109,11 +112,9 @@ func (q *Q) Add(data interface{}) bool {
         createdAt: time.Now().Unix(),
     }
     
-    q.lock.Lock()
     q.events <- e
     q.unionMap[hashStr] = append(q.unionMap[hashStr], &e.data)
     q.length ++
-    q.lock.Unlock()
     
     fmt.Println("add data", data, "length", q.length)
     return true
@@ -190,12 +191,15 @@ func (q *Q) getOne(ctx context.Context, callback func(data interface{}) bool) (r
 
 //关闭队列
 func (q *Q) Close() {
+    q.lock.Lock()
     if q.status {
         q.status = false
     }
-    for i := 0; i<q.consumerNum; i++{
-        q.closeSign <-true
+    for i := 0; i < q.consumerNum; i++ {
+        //fmt.Println("i", i)
+        q.closeSign <- true
     }
+    q.lock.Unlock()
 }
 
 //启用队列

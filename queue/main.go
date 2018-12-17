@@ -14,13 +14,13 @@ type bar struct{
 
 func main() {
     q := queue.NewQ()
-    for i := 0; i < 10; i++ {
+    for i := 0; i < 10000; i++ {
         data := &bar{i}
         q.Add(data)
         q.Add(data)
     }
     
-    for i:=0; i< 5; i++{
+    for i:=0; i< 5000; i++{
         //5个消费者
         go func() {
             ctx, _ := context.WithTimeout(context.Background(), time.Second*6)
@@ -31,6 +31,13 @@ func main() {
         }()
     }
     time.Sleep(time.Second)
-    q.Close()
-    time.Sleep(time.Second * 5)
+    fmt.Println("1s after")
+    for i := 0; i < 10000; i++ {
+        data := &bar{i}
+        q.Add(data)
+        q.Add(data)
+    }
+    
+    //q.Close()
+    time.Sleep(time.Second * 10)
 }
